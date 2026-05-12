@@ -47,7 +47,7 @@ import io
 
 # ====== Variables ======
 # == Constants ==
-PEAT_VERSION = 1.3
+PEAT_VERSION = "1.4 Beta"
 MAX_REPEAT = 60
 MAX_LABEL_LENGTH = 24
 PBAT_MAX_REPEAT = 60
@@ -64,7 +64,7 @@ BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 EXT_ROOT = os.path.join(BASE_DIR, "PEAT Extensions")
 
 EXT_STOCK = os.path.join(EXT_ROOT, "Stock")
-EXT_DOWNLOADED = os.path.join(EXT_ROOT, "Downloaded")
+EXT_UNACTIVE = os.path.join(EXT_ROOT, "Unactive")
 EXT_ACTIVE = os.path.join(EXT_ROOT, "Active")
 
 
@@ -146,6 +146,7 @@ extensions = {}
 cam_controls = {}
 user_info = {}
 extension_help = {}
+extensions = {}
 
 help_pages = {
     "help": "Displays this help message or details for a specific command.",
@@ -195,11 +196,8 @@ os.makedirs(camera_print_path, exist_ok=True)
 os.makedirs(log_dump_folder, exist_ok=True)
 os.makedirs(config_folder, exist_ok=True)
 os.makedirs(EXT_STOCK, exist_ok=True)
-os.makedirs(EXT_DOWNLOADED, exist_ok=True)
+os.makedirs(EXT_UNACTIVE, exist_ok=True)
 os.makedirs(EXT_ACTIVE, exist_ok=True)
-
-
-
 
 class PEATAPI:
     def __init__(self):
@@ -214,17 +212,14 @@ class PEATAPI:
 
 class ExtMan:
     def __init__(self):
-        self.downloaded = EXT_DOWNLOADED
+        self.unactive = EXT_UNACTIVE
         self.active = EXT_ACTIVE
 
-    def get(self, url):
-        return ext_get(self, url)
+    def load(self, name):
+        return ext_load(self, name)
 
-    def trust(self, name):
-        return ext_trust(self, name)
-
-    def untrust(self, name):
-        return ext_untrust(self, name)
+    def unload(self, name):
+        return ext_unload(self, name)
 
 # ====== Definitions ======
 # == System Functions ==
@@ -434,84 +429,30 @@ def register_command(extension, command_name, handler):
     router[full_name] = handler
 
 # == Extension Functions ==
-def ext_get(self, url):
-    name = url.split("/")[-1].replace(".git", "")
-    voice_print(f"Downloading extension: {name}")
-
-    zip_url = url.replace("github.com", "github.com").replace(
-        "tree/main", "archive/refs/heads/main.zip"
-    )
-
-    if not zip_url.endswith(".zip"):
-        zip_url = url.rstrip("/") + "/archive/refs/heads/main.zip"
-
-    r = requests.get(zip_url)
-    if r.status_code != 200:
-        voice_print("Failed to download extension.")
-        return
-
-    z = zipfile.ZipFile(io.BytesIO(r.content))
-
-    extract_path = os.path.join(self.downloaded, name)
-    os.makedirs(extract_path, exist_ok=True)
-
-    # =========================
-    # FIX: STRIP ROOT FOLDER
-    # =========================
-    root_folder = None
-
-    for file in z.namelist():
-        if file.endswith("/"):
-            continue
-        root_folder = file.split("/")[0]
-        break
-
-    for file in z.namelist():
-        if file.endswith("/"):
-            continue
-
-        parts = file.split("/", 1)
-
-        # skip root folder
-        if len(parts) == 2:
-            _, relative_path = parts
-        else:
-            continue
-
-        # ignore non-python files
-        if not relative_path.endswith(".py"):
-            continue
-
-        out_path = os.path.join(extract_path, os.path.basename(relative_path))
-
-        with open(out_path, "wb") as f:
-            f.write(z.read(file))
-
-    voice_print(f"Extension '{name}' downloaded.")
-    log(f"[EXT] Downloaded {name}")
-    
-def ext_trust(self, name):
+def ext_load(self, name):
+    name = name.replace(".py", "").strip()
     file = f"{name}.py"
 
-    src = os.path.join(self.downloaded, file)
+    src = os.path.join(self.unactive, file)
     dst = os.path.join(self.active, file)
 
     if not os.path.exists(src):
-        voice_print(f"Extension '{name}' not found in Downloaded.")
+        voice_print(f"Extension '{name}' not found in Unactive.")
         return
 
     shutil.move(src, dst)
 
-    voice_print(f"Extension '{name}' is now active.")
-    log(f"[EXT] Activated {name}")
+    voice_print(f"Extension '{name}' loaded.")
+    log(f"[EXT] Loaded {name}")
 
-    load_extensions()
+    reload_extensions()
 
-def ext_untrust(self, name):
+def ext_unload(self, name):
+    name = name.replace(".py", "").strip()
     file = f"{name}.py"
 
     src = os.path.join(self.active, file)
-    dst = os.path.join(self.downloaded, file)
+    dst = os.path.join(self.unactive, file)
 
     if not os.path.exists(src):
         voice_print(f"Extension '{name}' is not active.")
@@ -519,18 +460,31 @@ def ext_untrust(self, name):
 
     shutil.move(src, dst)
 
-    voice_print(f"Extension '{name}' disabled.")
-    log(f"[EXT] Deactivated {name}")
+    voice_print(f"Extension '{name}' unloaded.")
+    log(f"[EXT] Unloaded {name}")
 
-    load_extensions()
+    reload_extensions()
 
-def load_extensions():
+def reload_extensions():
+    global extensions
+
     ext_folder = EXT_ACTIVE
 
     if not os.path.exists(ext_folder):
         os.makedirs(ext_folder)
         return
 
+    # =========================
+    # CLEAR OLD MODULES
+    # =========================
+    for name in list(extensions.keys()):
+        if name in sys.modules:
+            del sys.modules[name]
+    extensions.clear()
+
+    # =========================
+    # LOAD EXTENSIONS
+    # =========================
     for file in os.listdir(ext_folder):
         if not file.endswith(".py"):
             continue
@@ -541,10 +495,7 @@ def load_extensions():
         spec = importlib.util.spec_from_file_location(name, path)
         module = importlib.util.module_from_spec(spec)
 
-        # =========================
-        # IMPORTANT: API INJECTION
-        # =========================
-
+        # inject API
         module.peat = api
 
         try:
@@ -552,6 +503,8 @@ def load_extensions():
 
             if hasattr(module, "load_extension"):
                 module.load_extension()
+
+            extensions[name] = module
 
             log(f"[EXT] Loaded extension: {name}")
 
@@ -730,7 +683,6 @@ def camera_loop():
 
     cap.release()
     cv2.destroyAllWindows()
-
 
 # == Other Functions ==
 def get_time_period():
@@ -1403,14 +1355,11 @@ def cmd_config_set(a1, a2, title):
 def cmd_version(a1, a2, title):
     print(f"You are using P.E.A.T. version {PEAT_VERSION}")
 
-def cmd_ext_get(a1, a2, title):
-    api.ext.get(a1)
+def cmd_ext_load(a1, a2, title):
+    api.ext.load(a1)
 
-def cmd_ext_trust(a1, a2, title):
-    api.ext.trust(a1)
-
-def cmd_ext_untrust(a1, a2, title):
-    api.ext.untrust(a1)
+def cmd_ext_unload(a1, a2, title):
+    api.ext.unload(a1)
 
 # == Populate Dictionaries == 
 def populate_router():
@@ -1420,9 +1369,10 @@ def populate_router():
     register_command("core", "v", cmd_version)
 
     # ExtMan commands
-    register_command("core", "ext.get", cmd_ext_get)
-    register_command("core", "ext.trust", cmd_ext_trust)
-    register_command("core", "ext.untrust", cmd_ext_untrust)
+    # register_command("core", "ext.get", cmd_ext_get)
+    register_command("core", "ext.load", cmd_ext_load)
+    register_command("core", "ext.unload", cmd_ext_unload)
+    register_command("core", "ext.reload", reload_extensions)
 
     # Action commands
     register_command("act", "launch", cmd_launch)
@@ -1459,7 +1409,7 @@ def populate_cam_controls():
 
 api = PEATAPI()
 populate_router()
-load_extensions()
+reload_extensions()
 populate_cam_controls()
 
 
