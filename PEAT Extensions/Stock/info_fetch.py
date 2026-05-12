@@ -1,4 +1,12 @@
-# Stock extension, created by Beffy
+"""
+PEAT EXTENSION
+author = Beffy
+name = info_fetch
+version = 1.0
+
+requirements:
+- none
+"""
 
 import urllib
 import xml.etree.ElementTree as ET

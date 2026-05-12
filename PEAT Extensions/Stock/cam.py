@@ -1,5 +1,12 @@
-# Stock extension, created by Beffy
-# Requires a camera
+"""
+PEAT EXTENSION
+author = Beffy
+name = cam
+version = 1.0
+
+requirements:
+- none
+"""
 
 EXT_NAMESPACE = "cam"
 

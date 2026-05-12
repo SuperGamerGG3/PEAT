@@ -1,0 +1,8 @@
+vosk
+SpeechRecognition
+sounddevice
+numpy
+pywin32
+opencv-python
+requests
+pipwin
