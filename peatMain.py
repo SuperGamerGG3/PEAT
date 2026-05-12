@@ -1412,8 +1412,6 @@ populate_router()
 reload_extensions()
 populate_cam_controls()
 
-
-
 # The main do function
 def do(cmd, title):
 
