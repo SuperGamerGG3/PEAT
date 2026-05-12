@@ -11,7 +11,7 @@ venv/
 
 peat_log.txt
 
-docs/
+do_not_package/
 
 Log Dumps/
 
