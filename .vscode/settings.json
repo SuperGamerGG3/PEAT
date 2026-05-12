@@ -1,0 +1,18 @@
+{
+    "python.terminal.executeInFileDir": true,
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.python",
+        "editor.formatOnSave": false,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4
+    },
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.analysis.typeCheckingMode": "off",
+    "cSpell.enabled": false,
+    "python.analysis.extraPaths": [
+    "."
+    ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "Beffy",
+  "newsItemsPerRequest": 7,
+  "dev": false,
+  "debugInfo": false,
+  "tts": false,
+  "voiceMode": false,
+  "debug": true
+}

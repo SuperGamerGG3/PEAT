@@ -1,0 +1,60 @@
+* =========================
+* PBAT FULL SYSTEM TEST
+* =========================
+
+print "=== STARTING PBAT TEST ==="
+
+* ---- VARIABLES ----
+set x: 5
+set y: 10
+set name: Michael
+
+print "Hello $name"
+print "x = $x, y = $y"
+
+* ---- ESCAPING ----
+print "Price is \$100.99"
+
+* ---- CONDITIONAL TESTS ----
+if x == 5:
+print "x is exactly 5"
+end
+
+if y > x:
+print "y is greater than x"
+end
+
+if x != 10:
+print "x is not 10"
+end
+
+* ---- LABEL + GOTO ----
+start:
+print "At START label"
+
+goto middle
+
+print "This will NOT run"
+
+middle:
+print "Now in MIDDLE section"
+
+* ---- LOOP TEST ----
+set counter: 1
+
+repeat 3:
+print "Loop run number $counter"
+set counter: 1
+end
+
+print "Loop finished"
+
+* ---- COMBINED LOGIC ----
+if counter == 1:
+print "Counter reset successfully"
+end
+
+end:
+print "At END label"
+
+print "=== PBAT TEST COMPLETE ==="
