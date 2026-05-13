@@ -114,8 +114,8 @@ dev_mode = False
 HOME = os.path.expanduser("~")
 config_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "config")
 config_path = os.path.join(config_folder, "config.json")
-pbat_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "PEAT Batch")
-log_dump_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Log Dumps")
+pbat_folder = os.path.join(BASE_DIR, "PEAT Batch")
+log_dump_folder = os.path.join(BASE_DIR, "Log Dumps")
 camera_print_path = os.path.join(HOME, "Pictures", "PEAT Cam Captures")
 user_info_path = os.path.join(config_folder, "user_info.json")
 
@@ -195,7 +195,6 @@ voice_aliases = {
 os.makedirs(camera_print_path, exist_ok=True)
 os.makedirs(log_dump_folder, exist_ok=True)
 os.makedirs(config_folder, exist_ok=True)
-os.makedirs(EXT_STOCK, exist_ok=True)
 os.makedirs(EXT_UNACTIVE, exist_ok=True)
 os.makedirs(EXT_ACTIVE, exist_ok=True)
 
@@ -1414,11 +1413,24 @@ populate_cam_controls()
 
 # The main do function
 def do(cmd, title):
-
-    log(f"Attempting do({cmd})")
-
+    log(f"Attempting do: '{cmd}'")
     global total_commands_used
     total_commands_used += 1
+
+        # hardcoded protected commands
+    if cmd_act in ("q", "quit", "exit", "bye"):
+
+        if title == "user":
+            quit(0, "User", "User requested exit.")
+
+        elif title == "pbat":
+            voice_print("Cannot quit PEAT from within a PBAT script!")
+            flag_error(4, "Attempted quit inside PBAT.")
+
+        elif title == "sys":
+            quit(0, "System", "System requested exit.")
+
+        return
 
     if voice_mode:
         original_cmd = cmd
@@ -1436,6 +1448,9 @@ def do(cmd, title):
         flag_error(2, "Fallback input triggered")
         return
 
+    print()
+
+    return
     # =========================
     # Conversational Responses
     # =========================
@@ -1445,22 +1460,6 @@ def do(cmd, title):
     normalized = normalized.replace("!", "")
     normalized = normalized.replace(".", "")
 
-    
-    # hardcoded protected commands
-    if cmd_act in ("q", "quit", "exit", "bye"):
-
-        if title == "user":
-            quit(0, "User", "User requested exit.")
-
-        elif title == "pbat":
-            voice_print("Cannot quit PEAT from within a PBAT script!")
-            flag_error(4, "Attempted quit inside PBAT.")
-
-        elif title == "sys":
-            quit(0, "System", "System requested exit.")
-
-        return
-    
     resp = process_conversation(normalized)
     if resp:
         voice_print(resp)

@@ -22,4 +22,5 @@ vosk-model-en-us-0.42-gigaspeech/
 backups/
 
 PEAT Extensions/Active/*
-!PEAT Extensions/Active/.gitkeep
+
+PEAT Extensions/Stock
