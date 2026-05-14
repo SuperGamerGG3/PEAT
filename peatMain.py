@@ -47,7 +47,7 @@ import io
 
 # ====== Variables ======
 # == Constants ==
-PEAT_VERSION = "0.24"
+PEAT_VERSION = "1.0.24"
 MAX_REPEAT = 60
 MAX_LABEL_LENGTH = 24
 PBAT_MAX_REPEAT = 60
