@@ -196,14 +196,36 @@ os.makedirs(EXT_ACTIVE, exist_ok=True)
 
 class PEATAPI:
     def __init__(self):
-        self.register_command = register_command
-        self.voice_print = voice_print
-        self.log = log
-        self.set_camera_mode = set_camera_mode
-        self.set_camera_index = set_camera_index
         self.router = router
 
         self.ext = ExtMan()
+
+    def register_command(self, extension, name, handler):
+        register_command(extension, name, handler)
+
+    def register_help(self, extension_name, help_dict):
+        register_help(extension_name, help_dict)
+
+    def get_commands(self):
+        return list(router.keys())
+
+    def print(self, text):
+        voice_print(text)
+
+    def log(self, message):
+        log(f"[EXT] {message}")
+
+    def camera(self):
+        return {
+            "set_mode": set_camera_mode,
+            "set_index": set_camera_index
+        }
+
+    def version(self):
+        return PEAT_VERSION
+
+    def is_debug(self):
+        return debug_mode
 
 class ExtMan:
     def __init__(self):
@@ -271,8 +293,8 @@ def log_clear():
     with open(log_file, "w", encoding="utf-8") as f:
         f.write("")
 
-def flag_error(error_code: int, message: str):
-    log(f"[ERROR] Error {error_code} flagged by system with message: '{message}'")
+def flag_error(title, message):
+    log(f"[ERROR] Error flagged by {title} with message: '{message}'")
 
 def validate_config_value(value_type, raw_value, default_value):
 
@@ -398,6 +420,7 @@ def make_dir(path, name, simple_path):
 
     os.makedirs(target_path, exist_ok=True)
     print(f"Directory created at: {target_path}")
+    log(f"Directory created at: {target_path}")
 
 def load_json_data():
     try:
@@ -539,8 +562,12 @@ def get_voice_model():
         try:
             voice_model = Model("vosk-model-en-us-0.42-gigaspeech")
             log("[INIT] Voice model loaded.")
+
+        except FileNotFoundError:
+            log(f"[INIT] [V] Voice model was not found. Make sure it's installed in the root and unzipped!")
+
         except Exception as e:
-            log(f"[INIT] Voice model load failed: {e}")
+            log(f"[INIT] [V] Voice model load failed: {e}")
             voice_ready = False
             voice_model = None
 
@@ -682,6 +709,7 @@ def camera_loop():
 # == Other Functions ==
 def get_time_period():
     # This was made by ai, but edited by me
+    time_period = ""
 
     # 1. Get current time in Central Time (US/Central)
     now_ct = datetime.now()
@@ -689,13 +717,15 @@ def get_time_period():
 
     # 2. Categorize based on standard ranges
     if 5 <= hour < 12:
-        return "morning"
+        time_period =  "morning"
     elif 12 <= hour < 17:
-        return "afternoon"
+        time_period = "afternoon"
     elif 17 <= hour < 21:
-        return "evening"
+        time_period ="evening"
     else:
-        return "night"
+        time_period = "night"
+
+    return time_period
 
 # == Mem Functions ==
 def load_user_info():
@@ -741,7 +771,7 @@ def suggest_command(cmd_act):
 
     keys = list(router.keys())
 
-    # 1. exact prefix match (VERY important for your dot commands)
+    # 1. exact prefix match (VERY important for dot commands)
     prefix_matches = [k for k in keys if k.startswith(cmd_act)]
     if prefix_matches:
         return prefix_matches[0]
@@ -872,6 +902,7 @@ def cam_capture(ctx):
     )
 
     cv2.imwrite(filename, frame)
+    log(f"[CAM C] Saved capture: {filename}")
     print(f"Saved capture: {filename}")
 
     return "capture"
@@ -879,11 +910,11 @@ def cam_capture(ctx):
 # == PBAT Functions ==
 def repeat_overflow(value):
     voice_print(f"Overflow: loop repeats {value} times which exceeds max of {MAX_REPEAT} times")
-    flag_error(5, "repeat overflow")
+    flag_error("PBAT" "repeat overflow")
 
 def label_overflow(value):
     voice_print(f"Overflow: label length {value} exceeds max of {MAX_LABEL_LENGTH} characters")
-    flag_error(5, "label overflow")
+    flag_error("PBAT", "label overflow")
 
 def resolve_vars(text, vars):
     out = ""
@@ -992,7 +1023,7 @@ def run_pbat(script_name):
             label = line[:-1].strip()
 
             if len(label) > PBAT_MAX_LABEL_LEN:
-                flag_error(5, f"Overflow: label length {len(label)} exceeds max of {PBAT_MAX_LABEL_LEN}")
+                flag_error("PBAT", f"Overflow: label length {len(label)} exceeds max of {PBAT_MAX_LABEL_LEN}")
                 return
 
             labels[label] = i
@@ -1047,7 +1078,7 @@ def run_pbat(script_name):
                 k, v = args.split(":", 1)
                 vars_dict[k.strip()] = v.strip()
             except:
-                flag_error(3, "Syntax error in set")
+                flag_error("PBAT", "Syntax error in set" )
             i += 1
             continue
 
@@ -1059,7 +1090,7 @@ def run_pbat(script_name):
                 raw = args[1:-1]
                 voice_print(resolve(raw))
             else:
-                flag_error(3, "Syntax error in print")
+                flag_error("PBAT", "Syntax error in print")
             i += 1
             continue
 
@@ -1069,7 +1100,7 @@ def run_pbat(script_name):
         if cmd == "goto":
             target = args.strip()
             if target not in labels:
-                flag_error(3, f"Unknown label {target}")
+                flag_error("PBAT", f"Unknown label {target}")
                 return
             i = labels[target]
             continue
@@ -1081,19 +1112,19 @@ def run_pbat(script_name):
             try:
                 count = int(args.replace(":", "").strip())
             except:
-                flag_error(3, "Syntax error in repeat")
+                flag_error("PBAT", "Syntax error in repeat")
                 i += 1
                 continue
 
             if count > PBAT_MAX_REPEAT:
-                flag_error(5, f"Overflow: loop repeats {count} times which exceeds max of {PBAT_MAX_REPEAT} times")
+                flag_error("PBAT", f"Overflow: loop repeats {count} times which exceeds max of {PBAT_MAX_REPEAT} times")
                 return
 
             start = i + 1
             end = find_block(start)
 
             if end == -1:
-                flag_error(3, "Missing end for repeat")
+                flag_error("PBAT", "Missing end for repeat")
                 return
 
             block = lines[start:end]
@@ -1108,7 +1139,7 @@ def run_pbat(script_name):
                             k, v = sub.split(" ", 1)[1].split(":", 1)
                             vars_dict[k.strip()] = v.strip()
                         except:
-                            flag_error(3, "Syntax error in repeat-set")
+                            flag_error("PBAT", "Syntax error in repeat-set")
 
                     elif sub.startswith("print"):
                         try:
@@ -1130,7 +1161,7 @@ def run_pbat(script_name):
             try:
                 cond = args.replace(":", "").split()
                 if len(cond) != 3:
-                    flag_error(3, "Syntax error in if")
+                    flag_error("PBAT", "Syntax error in if")
                     i += 1
                     continue
 
@@ -1155,7 +1186,7 @@ def run_pbat(script_name):
 
                 end = find_block(i + 1)
                 if end == -1:
-                    flag_error(3, "Missing end for if")
+                    flag_error("PBAT", "Missing end for if")
                     return
 
                 if ok:
@@ -1167,7 +1198,7 @@ def run_pbat(script_name):
                 continue
 
             except:
-                flag_error(3, "Syntax error in if")
+                flag_error("PBAT", "Syntax error in if")
                 i += 1
                 continue
 
@@ -1240,12 +1271,12 @@ def cmd_exec(a1, a2, title):
         execute(a1)
     else:
         voice_print("Cannot execute from within a PBAT script!")
-        flag_error(4, "Attempted to execute from within a PBAT script.")
+        flag_error("EXEC", "Attempted to execute from within a PBAT script.")
 
 def cmd_pbat(a1, a2, title):
     if title == "pbat":
         voice_print("Cannot run a PBAT script from within another PBAT script!")
-        flag_error(4, "Attempted nested PBAT.")
+        flag_error("PBAT", "Attempted nested PBAT.")
         return
 
     if not a1:
@@ -1291,7 +1322,7 @@ def cmd_delay(a1, a2, title):
         time.sleep(delay_time)
         voice_print(f"Delayed for {delay_time} seconds.")
     except ValueError:
-        flag_error(3, f"Expected a number for delay time, got: {a1}")
+        flag_error("delay", f"Expected a number for delay time, got: {a1}")
 
 def cmd_time(a1, a2, title):
     now = datetime.now()
@@ -1428,7 +1459,7 @@ def do(cmd, title):
             return
 
     if cmd.lower() == fallback_input.lower():
-        flag_error(2, "Fallback input triggered")
+        flag_error("DO", "Fallback input triggered")
         return
 
     
@@ -1454,7 +1485,7 @@ def do(cmd, title):
 
         elif title == "pbat":
             voice_print("Cannot quit PEAT from within a PBAT script!")
-            flag_error(4, "Attempted quit inside PBAT.")
+            flag_error("PBAT" "Attempted quit inside PBAT.")
 
         elif title == "sys":
             quit(0, "System", "System requested exit.")
