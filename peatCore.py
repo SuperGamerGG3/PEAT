@@ -1,20 +1,21 @@
 # ======================================================
 # P.E.A.T.
 # Personal Engine for Automating Tasks
-# Made by Beffy (Michael)
+# Made by Beffy
 # ======================================================
 
 # TODO list (arrows mean WIP):
 # -> Add more commands
-# - Fix PBAT
-# - Finish the docs
+# - Add extension JSON
 
-# - Add trusted PBAT folder system
+# PBAT TODO:
+# - Fix PBAT loops
+# - Add PBAT recursion (PBAT in PBAT)
+# - Add trusted PBAT folder system, or json
 # - Add warning prompt before running untrusted PBAT scripts
 # - Add safe mode for dangerous commands
 # - Add optional command permission system
 # - Add PBAT execution restrictions/sandboxing
-
 
 # Recommended TODO list:
 # - Add more error codes and better error handling
