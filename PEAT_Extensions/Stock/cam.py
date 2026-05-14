@@ -1,11 +1,12 @@
 """
 PEAT EXTENSION
 author = Beffy
-name = cam
+name = Cams
+filename = cam
 version = 1.0
 
 requirements:
-- none
+- None
 """
 
 EXT_NAMESPACE = "cam"

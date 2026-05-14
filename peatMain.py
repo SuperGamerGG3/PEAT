@@ -47,7 +47,7 @@ import io
 
 # ====== Variables ======
 # == Constants ==
-PEAT_VERSION = "1.4 Beta"
+PEAT_VERSION = "0.24"
 MAX_REPEAT = 60
 MAX_LABEL_LENGTH = 24
 PBAT_MAX_REPEAT = 60
@@ -57,16 +57,6 @@ SAMPLE_RATE = 16000
 SILENCE_LIMIT = 0
 BOT_NAME = "Peat"
 BOT_NAME_MADE_WITH_AI = False
-
-# == Const Paths ==
-BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-
-EXT_ROOT = os.path.join(BASE_DIR, "PEAT Extensions")
-
-EXT_STOCK = os.path.join(EXT_ROOT, "Stock")
-EXT_UNACTIVE = os.path.join(EXT_ROOT, "Unactive")
-EXT_ACTIVE = os.path.join(EXT_ROOT, "Active")
-
 
 # == Init ==
 # Nothing here... for now
@@ -112,10 +102,15 @@ dev_mode = False
 
 # == Paths ==
 HOME = os.path.expanduser("~")
+BASE_DIR = os.path.dirname(os.path.realpath(__file__))
+EXT_ROOT = os.path.join(BASE_DIR, "PEAT_Extensions")
+EXT_STOCK = os.path.join(EXT_ROOT, "Stock")
+EXT_UNACTIVE = os.path.join(EXT_ROOT, "Unactive")
+EXT_ACTIVE = os.path.join(EXT_ROOT, "Active")
 config_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "config")
 config_path = os.path.join(config_folder, "config.json")
-pbat_folder = os.path.join(BASE_DIR, "PEAT Batch")
-log_dump_folder = os.path.join(BASE_DIR, "Log Dumps")
+pbat_folder = os.path.join(BASE_DIR, "PEAT_Batch")
+log_dump_folder = os.path.join(BASE_DIR, "log_dumps")
 camera_print_path = os.path.join(HOME, "Pictures", "PEAT Cam Captures")
 user_info_path = os.path.join(config_folder, "user_info.json")
 
@@ -394,9 +389,9 @@ def save_config_value(value_type, key_name, save_value):
 
 def make_dir(path, name, simple_path):
     new_folder = name
-    home = os.path.expanduser("~")
+
     if simple_path != (""):
-        target_path = os.path.join(home, "Pictures", new_folder)
+        target_path = os.path.join(HOME, "Pictures", new_folder)
     else:
         target_path = os.path.join(path, new_folder)
 
@@ -1417,20 +1412,7 @@ def do(cmd, title):
     global total_commands_used
     total_commands_used += 1
 
-        # hardcoded protected commands
-    if cmd_act in ("q", "quit", "exit", "bye"):
-
-        if title == "user":
-            quit(0, "User", "User requested exit.")
-
-        elif title == "pbat":
-            voice_print("Cannot quit PEAT from within a PBAT script!")
-            flag_error(4, "Attempted quit inside PBAT.")
-
-        elif title == "sys":
-            quit(0, "System", "System requested exit.")
-
-        return
+    cmd_act, cmd_args1, cmd_args2 = parse_input(cmd)
 
     if voice_mode:
         original_cmd = cmd
@@ -1448,21 +1430,34 @@ def do(cmd, title):
         flag_error(2, "Fallback input triggered")
         return
 
-    print()
-
-    return
+    
     # =========================
     # Conversational Responses
     # =========================
 
-    normalized = cmd.strip().lower()
-    normalized = normalized.replace("?", "")
-    normalized = normalized.replace("!", "")
-    normalized = normalized.replace(".", "")
+    #normalized = cmd.strip().lower()
+    #normalized = normalized.replace("?", "")
+    #normalized = normalized.replace("!", "")
+    #normalized = normalized.replace(".", "")
 
-    resp = process_conversation(normalized)
-    if resp:
-        voice_print(resp)
+    #resp = process_conversation(normalized)
+    #if resp:
+    #    voice_print(resp)
+    #    return
+
+        # hardcoded protected commands
+    if cmd_act in ("q", "quit", "exit", "bye"):
+
+        if title == "user":
+            quit(0, "User", "User requested exit.")
+
+        elif title == "pbat":
+            voice_print("Cannot quit PEAT from within a PBAT script!")
+            flag_error(4, "Attempted quit inside PBAT.")
+
+        elif title == "sys":
+            quit(0, "System", "System requested exit.")
+
         return
 
     # router dispatch

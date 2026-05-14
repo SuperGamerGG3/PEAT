@@ -1,11 +1,12 @@
 """
 PEAT EXTENSION
 author = Beffy
-name = ai
+name = PEAT Ollama Integration
+filename = ai
 version = 1.0
 
 requirements:
-- none
+- None
 """
 
 # Requires oLlama to be installed and running on your computer

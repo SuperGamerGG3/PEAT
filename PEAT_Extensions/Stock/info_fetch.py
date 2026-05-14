@@ -1,11 +1,12 @@
 """
 PEAT EXTENSION
 author = Beffy
-name = info_fetch
+name = Internet Info Fetch
+filename = info_fetch
 version = 1.0
 
 requirements:
-- none
+- None
 """
 
 import urllib
