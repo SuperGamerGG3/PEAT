@@ -3,7 +3,7 @@
   "newsItemsPerRequest": 7,
   "dev": false,
   "debugInfo": false,
-  "tts": false,
+  "tts": true,
   "voiceMode": false,
   "debug": true
 }

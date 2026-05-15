@@ -14,6 +14,7 @@ requirements:
 import requests
 
 EXT_NAMESPACE = "ai"
+ollama_link = "http://localhost:11434/api/generate"
 
 help_dict = {
     "ask": "Ask a question to the local AI (Ollama) in arg1 (wrapped in quotes)",
@@ -27,7 +28,7 @@ def load_extension():
 def ollama_ask(prompt, model="llama3"):
     try:
         r = requests.post(
-            "http://localhost:11434/api/generate",
+            ollama_link,
             json={
                 "model": model,
                 "prompt": prompt,
@@ -47,8 +48,8 @@ def cmd_ai_ask(a1, a2, title):
     if a1[0] in ('"', "'"):
         a1 = peat.clean_args(a1, a1[0]) # type: ignore
 
-    peat.voice_print("Thinking...") # type: ignore
+    peat.voice_print("Let me think...") # type: ignore
 
     reply = ollama_ask(a1)
 
-    peat.voice_print(reply) # type: ignore
+    peat.voice_print(f"Ollama says: {reply}") # type: ignore

@@ -49,7 +49,7 @@ import io
 
 # ====== Variables ======
 # == Constants ==
-PEAT_VERSION = "1.1.25"
+PEAT_VERSION = ""
 MAX_REPEAT = 60
 MAX_LABEL_LENGTH = 24
 PBAT_MAX_REPEAT = 60
@@ -115,6 +115,9 @@ pbat_folder = os.path.join(BASE_DIR, "PEAT_Batch")
 log_dump_folder = os.path.join(BASE_DIR, "log_dumps")
 camera_print_path = os.path.join(HOME, "Pictures", "PEAT Cam Captures")
 user_info_path = os.path.join(config_folder, "user_info.json")
+pbat_trust_folder = os.path.join(BASE_DIR, "PEAT_Batch/Trusted")
+system_folder = os.path.join(BASE_DIR, "system")
+sys_info_path = os.path.join(system_folder, "sys_info")
 
 # == Files ==
 log_file = "peat_log.txt"
@@ -198,7 +201,6 @@ os.makedirs(EXT_ACTIVE, exist_ok=True)
 class PEATAPI:
     def __init__(self):
         self.router = router
-
         self.ext = ExtMan()
 
     def register_command(self, extension, name, handler):
@@ -216,10 +218,10 @@ class PEATAPI:
     def log(self, message):
         log(f"[EXT] {message}")
 
-    def set_camera_mode(m):
+    def set_camera_mode(self, m):
         set_camera_mode(m)
 
-    def set_camera_index(i):
+    def set_camera_index(self, i):
         set_camera_index(i)
 
     def version(self):
@@ -267,7 +269,7 @@ def log_dump():
     # Create timestamp
     timestamp = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
 
-    # Log the log was dumped
+    # Log the log was dumped (on the log)
     log(f"Log dumped")
 
     # Build new filename
@@ -280,7 +282,7 @@ def log_dump():
     voice_print(f"Log dumped to: {new_path}")
 
 def quit(exit_code, title, reason):
-    log(f"{title} flagged exit with exit code: {exit_code} because: {reason}")
+    log(f"{title} flagged exit ({exit_code}) because: {reason}")
     voice_print("Quitting PEAT...")
     if exit_code != 0:
         print("Error(s) were encountered. Check the log for more details.")
@@ -358,23 +360,23 @@ def validate_config_value(value_type, raw_value, default_value):
 
     return raw_value if isinstance(raw_value, type(default_value)) else default_value
 
-def load_config_value(value_type, key_name, default_value):
+def load_json_value(path, value_type, key_name, default_value):
 
-    if not os.path.isfile(config_path):
-        save_config_value(value_type, key_name, default_value)
+    if not os.path.isfile(path):
+        save_json_value(value_type, key_name, default_value)
         return default_value
 
     try:
-        with open(config_path, "r", encoding="utf-8") as config_file:
+        with open(path, "r", encoding="utf-8") as config_file:
             config_data = json.load(config_file)
             if debug_info:
                 print(f"Loaded '{key_name}' with '{config_data}'")
     except (json.JSONDecodeError, OSError):
-        save_config_value(value_type, key_name, default_value)
+        save_json_value(value_type, key_name, default_value)
         return default_value
 
     if not isinstance(config_data, dict):
-        save_config_value(value_type, key_name, default_value)
+        save_json_value(value_type, key_name, default_value)
         return default_value
 
     raw_value = config_data.get(key_name, default_value)
@@ -383,19 +385,19 @@ def load_config_value(value_type, key_name, default_value):
     if key_name not in config_data or value != raw_value:
         config_data[key_name] = value
         try:
-            with open(config_path, "w", encoding="utf-8") as config_file:
+            with open(path, "w", encoding="utf-8") as config_file:
                 json.dump(config_data, config_file, indent=2)
         except OSError:
             print("Warning: could not write config file.")
 
     return value
 
-def save_config_value(value_type, key_name, save_value):
+def save_json_value(path, value_type, key_name, save_value):
 
     config_data = {}
-    if os.path.isfile(config_path):
+    if os.path.isfile(path):
         try:
-            with open(config_path, "r", encoding="utf-8") as config_file:
+            with open(path, "r", encoding="utf-8") as config_file:
                 existing = json.load(config_file)
                 if isinstance(existing, dict):
                     config_data = existing
@@ -405,7 +407,7 @@ def save_config_value(value_type, key_name, save_value):
     config_data[key_name] = validate_config_value(value_type, save_value, save_value)
 
     try:
-        with open(config_path, "w", encoding="utf-8") as config_file:
+        with open(path, "w", encoding="utf-8") as config_file:
             json.dump(config_data, config_file, indent=2)
     except OSError:
         print("Warning: could not write config file.")
@@ -425,13 +427,20 @@ def make_dir(path, name, simple_path):
 def load_json_data():
     try:
         global debug_info, name, news_items_per_request, dev_mode, debug_mode, voice_mode, tts_toggle, user_info_path
-        debug_info = load_config_value("bool", "debugInfo", False)
-        name = load_config_value("str", "name", default_name)
-        news_items_per_request = load_config_value("int", "newsItemsPerRequest", news_items_per_request)
-        dev_mode = load_config_value("bool", "dev", False)
-        debug_mode = load_config_value("bool", "debug", False)
-        voice_mode = load_config_value("bool", "voiceMode", True)
-        tts_toggle = (True if voice_mode else load_config_value("bool", "tts", False))
+        global PEAT_VERSION
+
+        # Load config data
+        debug_info = load_json_value(config_path, "bool", "debugInfo", False)
+        name = load_json_value(config_path, "str", "name", default_name)
+        news_items_per_request = load_json_value(config_path, "int", "newsItemsPerRequest", news_items_per_request)
+        dev_mode = load_json_value(config_path, "bool", "dev", False)
+        debug_mode = load_json_value(config_path, "bool", "debug", False)
+        voice_mode = load_json_value(config_path, "bool", "voiceMode", True)
+        tts_toggle = (True if voice_mode else load_json_value(config_path, "bool", "tts", False))
+
+        # Load system data
+        PEAT_VERSION = load_json_value(sys_info_path, "str", "sysVersion", "Error!!")
+
         
     except (OSError, json.JSONDecodeError) as e:
         quit(1, "system", f"Error while loading JSON data: {e}")
@@ -1000,7 +1009,7 @@ def run_pbat(script_name):
     if not script_name.endswith(".pbat"):
         script_name += ".pbat"
 
-    script_path = os.path.join(pbat_folder, script_name)
+    script_path = os.path.join(pbat_trust_folder, script_name)
 
     if not os.path.exists(script_path):
         print(f"PBAT script not found: {script_name}")
@@ -1350,7 +1359,7 @@ def cmd_config_get(a1, a2, title):
         voice_print("Expected config key.")
         return
 
-    value = load_config_value("str", a1, "undefined")
+    value = load_json_value("str", a1, "undefined")
     voice_print(f"{a1} = {value}")
 
 def cmd_config_set(a1, a2, title):
@@ -1375,7 +1384,7 @@ def cmd_config_set(a1, a2, title):
             except:
                 pass
 
-    save_config_value(type(value).__name__, a1, value)
+    save_json_value(type(value).__name__, a1, value)
     voice_print(f"Saved: {a1} = {value}")
 
 def cmd_version(a1, a2, title):
@@ -1386,6 +1395,9 @@ def cmd_ext_load(a1, a2, title):
 
 def cmd_ext_unload(a1, a2, title):
     api.ext.unload(a1)
+
+def cmd_ext_reload(a1, a2, title):
+    reload_extensions()
 
 # == Populate Dictionaries == 
 def populate_router():
@@ -1398,7 +1410,7 @@ def populate_router():
     # register_command("core", "ext.get", cmd_ext_get)
     register_command("core", "ext.load", cmd_ext_load)
     register_command("core", "ext.unload", cmd_ext_unload)
-    register_command("core", "ext.reload", reload_extensions)
+    register_command("core", "ext.reload", cmd_ext_reload)
 
     # Action commands
     register_command("act", "launch", cmd_launch)
