@@ -7,6 +7,7 @@
 # TODO list (arrows mean WIP):
 # -> Add more commands
 # - Add extension JSON
+# - Add turtle faces
 
 # PBAT TODO:
 # - Fix PBAT loops
