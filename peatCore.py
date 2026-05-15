@@ -209,17 +209,17 @@ class PEATAPI:
     def get_commands(self):
         return list(router.keys())
 
-    def print(self, text):
+    def voice_print(self, text):
         voice_print(text)
 
     def log(self, message):
         log(f"[EXT] {message}")
 
-    def camera(self):
-        return {
-            "set_mode": set_camera_mode,
-            "set_index": set_camera_index
-        }
+    def set_camera_mode(m):
+        set_camera_mode(m)
+
+    def set_camera_index(i):
+        set_camera_index(i)
 
     def version(self):
         return PEAT_VERSION
@@ -283,7 +283,6 @@ def quit(exit_code, title, reason):
     voice_print("Quitting PEAT...")
     if exit_code != 0:
         print("Error(s) were encountered. Check the log for more details.")
-        print("Check the error code list for more info on the error(s), or get Michael.")
         if debug_mode:
             print("Debug mode is enabled. The log was automatically dumped for you.")
             log_dump()
