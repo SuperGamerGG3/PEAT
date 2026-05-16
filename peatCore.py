@@ -5,12 +5,11 @@
 # ======================================================
 
 # TODO list (arrows mean WIP):
-# -> Add more commands
 # - Add extension JSON
 # - Add turtle faces
 # - Add diagnostics
 
-# PBAT TODO:
+# TODO PBAT:
 # - Fix PBAT loops
 # - Add PBAT recursion (PBAT in PBAT)
 # - Add trusted PBAT folder system, or json
@@ -19,14 +18,13 @@
 # - Add optional command permission system
 # - Add PBAT execution restrictions/sandboxing
 
-# Recommended TODO list:
+# TODO later list:
 # - Add more error codes and better error handling
-# - Add executables (not windows executables, shortscript maybe)
+# - Add executables (not windows executables, custom shortscript maybe)
 
 from datetime import datetime
 from vosk import Model, KaldiRecognizer
 
-import speech_recognition as sr
 import sounddevice as sd
 import numpy as np
 import win32com.client
@@ -43,9 +41,6 @@ import subprocess
 import webbrowser
 import shlex
 import difflib
-import requests
-import zipfile
-import io
 
 
 # ====== Variables ======
