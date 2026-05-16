@@ -8,6 +8,7 @@
 # -> Add more commands
 # - Add extension JSON
 # - Add turtle faces
+# - Add diagnostics
 
 # PBAT TODO:
 # - Fix PBAT loops
@@ -363,7 +364,7 @@ def validate_config_value(value_type, raw_value, default_value):
 def load_json_value(path, value_type, key_name, default_value):
 
     if not os.path.isfile(path):
-        save_json_value(value_type, key_name, default_value)
+        save_json_value(path, value_type, key_name, default_value)
         return default_value
 
     try:
@@ -372,11 +373,11 @@ def load_json_value(path, value_type, key_name, default_value):
             if debug_info:
                 print(f"Loaded '{key_name}' with '{config_data}'")
     except (json.JSONDecodeError, OSError):
-        save_json_value(value_type, key_name, default_value)
+        save_json_value(path, value_type, key_name, default_value)
         return default_value
 
     if not isinstance(config_data, dict):
-        save_json_value(value_type, key_name, default_value)
+        save_json_value(path, value_type, key_name, default_value)
         return default_value
 
     raw_value = config_data.get(key_name, default_value)
@@ -1359,7 +1360,7 @@ def cmd_config_get(a1, a2, title):
         voice_print("Expected config key.")
         return
 
-    value = load_json_value("str", a1, "undefined")
+    value = load_json_value(config_path, "str", a1, "undefined")
     voice_print(f"{a1} = {value}")
 
 def cmd_config_set(a1, a2, title):
@@ -1384,7 +1385,7 @@ def cmd_config_set(a1, a2, title):
             except:
                 pass
 
-    save_json_value(type(value).__name__, a1, value)
+    save_json_value(config_path, type(value).__name__, a1, value)
     voice_print(f"Saved: {a1} = {value}")
 
 def cmd_version(a1, a2, title):
