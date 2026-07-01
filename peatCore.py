@@ -5,9 +5,10 @@
 # ======================================================
 
 # TODO list (arrows mean WIP):
-# - Add extension JSON
-# - Add turtle faces
-# - Add diagnostics
+# - Add extension JSON manifest
+# - Add different 'modules', such as libraries, apis, and include extensions
+# - Add an Action Log for P.E.A.T. and user to keep track of what it does, force extensions to log their actions
+# - Differentiate between 'System Log' and 'Action Log'
 
 # TODO PBAT:
 # - Fix PBAT loops
@@ -21,6 +22,10 @@
 # TODO later list:
 # - Add more error codes and better error handling
 # - Add executables (not windows executables, custom shortscript maybe)
+
+# TODO ideas:
+# - Add turtle faces
+# - Add diagnostics
 
 from datetime import datetime
 from vosk import Model, KaldiRecognizer
@@ -101,11 +106,12 @@ dev_mode = False
 # == Paths ==
 HOME = os.path.expanduser("~")
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
-EXT_ROOT = os.path.join(BASE_DIR, "PEAT_Extensions")
+EXT_ROOT = os.path.join(BASE_DIR, "PEAT_Modules/Extensions")
 EXT_STOCK = os.path.join(EXT_ROOT, "Stock")
 EXT_UNACTIVE = os.path.join(EXT_ROOT, "Unactive")
 EXT_ACTIVE = os.path.join(EXT_ROOT, "Active")
-config_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "config")
+
+config_folder = os.path.join(BASE_DIR, "config")
 config_path = os.path.join(config_folder, "config.json")
 pbat_folder = os.path.join(BASE_DIR, "PEAT_Batch")
 log_dump_folder = os.path.join(BASE_DIR, "log_dumps")
@@ -114,6 +120,7 @@ user_info_path = os.path.join(config_folder, "user_info.json")
 pbat_trust_folder = os.path.join(BASE_DIR, "PEAT_Batch/Trusted")
 system_folder = os.path.join(BASE_DIR, "system")
 sys_info_path = os.path.join(system_folder, "sys_info")
+peat_print_path = os.path.join(HOME, "Documents", "PEAT Prints")
 
 # == Files ==
 log_file = "peat_log.txt"
@@ -241,9 +248,9 @@ class ExtMan:
 # == System Functions ==
 def init_log():
     with open(log_file, "w", encoding="utf-8") as f:
-        f.write("===== PEAT BOOT LOG =====\n")
+        f.write("====== PEAT LOG ======\n")
         f.write(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write("=========================\n\n")
+        f.write("======================\n\n")
 
 init_log()
 
@@ -277,8 +284,15 @@ def log_dump():
 
     voice_print(f"Log dumped to: {new_path}")
 
-def quit(exit_code, title, reason):
-    log(f"{title} flagged exit ({exit_code}) because: {reason}")
+def init_act_log():
+    with open(log_file, "w", encoding="utf-8") as f:
+        f.write("====== PEAT ACTION LOG ======\n")
+        f.write("What PEAT does behind the scenes...\n")
+        f.write("(log for peat's automated actions)")
+        f.write("=============================\n\n")
+
+def quit(exit_code, who, reason):
+    log(f"{who} flagged exit ({exit_code}) because: {reason}")
     voice_print("Quitting PEAT...")
     if exit_code != 0:
         print("Error(s) were encountered. Check the log for more details.")
@@ -291,8 +305,8 @@ def log_clear():
     with open(log_file, "w", encoding="utf-8") as f:
         f.write("")
 
-def flag_error(title, message):
-    log(f"[ERROR] Error flagged by {title} with message: '{message}'")
+def flag_error(who, message):
+    log(f"[ERROR] Error flagged by {who} with message: '{message}'")
 
 def validate_config_value(value_type, raw_value, default_value):
 
@@ -546,8 +560,6 @@ def set_camera_mode(value):
 def set_camera_index(i):
     global camera_index
     camera_index = i
-
-# def PEATAPI
 
 # == Command Handler Functions ==
 def callback(indata, frames, time, status):
@@ -1217,7 +1229,7 @@ def run_pbat(script_name):
     voice_print(f"PBAT Script '{script_name}' finished.")
 
 # == CMD Functions ==
-def cmd_help(a1, a2, title):
+def cmd_help(a1, a2, who):
     if not a1:
         print("Commands:")
 
@@ -1232,8 +1244,8 @@ def cmd_help(a1, a2, title):
 
         return
 
-def cmd_log(a1, a2, title):
-    if title == "pbat":
+def cmd_log(a1, a2, who):
+    if who == "pbat":
         log(f"[PBAT] {a1}")
         return
 
@@ -1261,7 +1273,7 @@ def cmd_log(a1, a2, title):
 
     voice_print("Unknown log command.")
 
-def cmd_launch(a1, a2, title):
+def cmd_launch(a1, a2, who):
     if not a1:
         voice_print("Expected a string for the application name, but got nothing.")
         return
@@ -1271,15 +1283,15 @@ def cmd_launch(a1, a2, title):
 
     launch_app(a1)
 
-def cmd_exec(a1, a2, title):
-    if title != "pbat":
+def cmd_exec(a1, a2, who):
+    if who != "pbat":
         execute(a1)
     else:
         voice_print("Cannot execute from within a PBAT script!")
         flag_error("EXEC", "Attempted to execute from within a PBAT script.")
 
-def cmd_pbat(a1, a2, title):
-    if title == "pbat":
+def cmd_pbat(a1, a2, who):
+    if who == "pbat":
         voice_print("Cannot run a PBAT script from within another PBAT script!")
         flag_error("PBAT", "Attempted nested PBAT.")
         return
@@ -1293,7 +1305,7 @@ def cmd_pbat(a1, a2, title):
 
     run_pbat(a1)
 
-def cmd_print(a1, a2, title):
+def cmd_print(a1, a2, who):
     if not a1:
         voice_print("Expected a string to print, but got nothing.")
         return
@@ -1303,10 +1315,10 @@ def cmd_print(a1, a2, title):
 
     voice_print(a1)
 
-def cmd_quote(a1, a2, title):
+def cmd_quote(a1, a2, who):
     voice_print(quotes[total_commands_used % len(quotes)])
 
-def cmd_link(a1, a2, title):
+def cmd_link(a1, a2, who):
     if not a1:
         voice_print("Expected a string for the URL, but got nothing.")
         return
@@ -1317,7 +1329,7 @@ def cmd_link(a1, a2, title):
     voice_print(f"Opening link in browser: {a1}")
     webbrowser.open(a1)
 
-def cmd_delay(a1, a2, title):
+def cmd_delay(a1, a2, who):
     if not a1:
         voice_print("Expected a number, but got nothing.")
         return
@@ -1329,20 +1341,20 @@ def cmd_delay(a1, a2, title):
     except ValueError:
         flag_error("delay", f"Expected a number for delay time, got: {a1}")
 
-def cmd_time(a1, a2, title):
+def cmd_time(a1, a2, who):
     now = datetime.now()
     voice_print(f"Current time: {now.strftime('%H:%M:%S')}")
 
-def cmd_date(a1, a2, title):
+def cmd_date(a1, a2, who):
     now = datetime.now()
     voice_print(f"Today is: {now.strftime('%Y-%m-%d')}")
 
-def cmd_now(a1, a2, title):
+def cmd_now(a1, a2, who):
     now = datetime.now()
     voice_print(f"Date: {now.strftime('%Y-%m-%d')}")
     voice_print(f"Time: {now.strftime('%H:%M:%S')}")
 
-def cmd_debug(a1, a2, title):
+def cmd_debug(a1, a2, who):
     global debug_mode
 
     debug_mode = not debug_mode
@@ -1350,7 +1362,7 @@ def cmd_debug(a1, a2, title):
     voice_print(f"Debug mode is {'enabled' if debug_mode else 'disabled'}.")
     log(f"Debug mode {'enabled' if debug_mode else 'disabled'} by user.")
 
-def cmd_config_get(a1, a2, title):
+def cmd_config_get(a1, a2, who):
     if not a1:
         voice_print("Expected config key.")
         return
@@ -1358,7 +1370,7 @@ def cmd_config_get(a1, a2, title):
     value = load_json_value(config_path, "str", a1, "undefined")
     voice_print(f"{a1} = {value}")
 
-def cmd_config_set(a1, a2, title):
+def cmd_config_set(a1, a2, who):
     if not a1 or not a2:
         voice_print("Usage: config.set <key> <value>")
         return
@@ -1383,16 +1395,16 @@ def cmd_config_set(a1, a2, title):
     save_json_value(config_path, type(value).__name__, a1, value)
     voice_print(f"Saved: {a1} = {value}")
 
-def cmd_version(a1, a2, title):
+def cmd_version(a1, a2, who):
     print(f"You are using P.E.A.T. version {PEAT_VERSION}")
 
-def cmd_ext_load(a1, a2, title):
+def cmd_ext_load(a1, a2, who):
     api.ext.load(a1)
 
-def cmd_ext_unload(a1, a2, title):
+def cmd_ext_unload(a1, a2, who):
     api.ext.unload(a1)
 
-def cmd_ext_reload(a1, a2, title):
+def cmd_ext_reload(a1, a2, who):
     reload_extensions()
 
 # == Populate Dictionaries == 
@@ -1440,15 +1452,16 @@ def populate_cam_controls():
     cam_controls[ord("q")] = cam_quit
     cam_controls[ord("p")] = cam_capture
 
-
 api = PEATAPI()
 populate_router()
 reload_extensions()
 populate_cam_controls()
 
 # The main do function
-def do(cmd, title):
+def do(cmd, who):
     log(f"Attempting do: '{cmd}'")
+    if who != "user":
+        log(f"Command issued by: {who}, this will be logged in action log.")
     global total_commands_used
     total_commands_used += 1
 
@@ -1463,39 +1476,24 @@ def do(cmd, title):
     cmd_act, cmd_args1, cmd_args2 = parse_input(cmd)
 
     if cmd_act == "end":
-        if title == "pbat":
+        if who == "pbat":
             return
 
     if cmd.lower() == fallback_input.lower():
         flag_error("DO", "Fallback input triggered")
         return
-
     
-    # =========================
-    # Conversational Responses
-    # =========================
-
-    #normalized = cmd.strip().lower()
-    #normalized = normalized.replace("?", "")
-    #normalized = normalized.replace("!", "")
-    #normalized = normalized.replace(".", "")
-
-    #resp = process_conversation(normalized)
-    #if resp:
-    #    voice_print(resp)
-    #    return
-
-        # hardcoded protected commands
+    # hardcoded protected commands
     if cmd_act in ("q", "quit", "exit", "bye"):
 
-        if title == "user":
+        if who == "user":
             quit(0, "User", "User requested exit.")
 
-        elif title == "pbat":
+        elif who == "pbat":
             voice_print("Cannot quit PEAT from within a PBAT script!")
             flag_error("PBAT" "Attempted quit inside PBAT.")
 
-        elif title == "sys":
+        elif who == "sys":
             quit(0, "System", "System requested exit.")
 
         return
@@ -1505,10 +1503,10 @@ def do(cmd, title):
 
     if handler:
         try:
-            handler(cmd_args1, cmd_args2, title)
+            handler(cmd_args1, cmd_args2, who)
         except Exception as e:
             voice_print(f"Command error: {e}")
-            log(f"Command crash in '{cmd_act}': {e}")
+            log(f"Command error in '{cmd_act}': {e}")
     else:
         suggestion = suggest_command(cmd_act)
 
