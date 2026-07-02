@@ -1,6 +1,6 @@
 # ======================================================
-# P.E.A.T.
-# Personal Engine for Automating Tasks
+# PEAT
+# just peat
 # Made by Beffy
 # ======================================================
 
@@ -65,13 +65,11 @@ BOT_NAME_MADE_WITH_AI = False
 # Nothing here... for now
 
 # == Defaults ==
-default_name = "Michael" # This is mah name, aka the fallback
+default_name = "User"
 fallback_input = "wubbaLubbaDubDubs" # Yup
 default_query_placeholder = "How can I assist you? "
 
-news_items_per_request = 7
 tts_toggle = True
-voice_mode = False
 debug_info = False
 
 q = queue.Queue()
@@ -108,7 +106,7 @@ HOME = os.path.expanduser("~")
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 EXT_ROOT = os.path.join(BASE_DIR, "PEAT_Modules/Extensions")
 EXT_STOCK = os.path.join(EXT_ROOT, "Stock")
-EXT_UNACTIVE = os.path.join(EXT_ROOT, "Unactive")
+EXT_UNACTIVE = os.path.join(EXT_ROOT, "Inactive")
 EXT_ACTIVE = os.path.join(EXT_ROOT, "Active")
 
 config_folder = os.path.join(BASE_DIR, "config")
@@ -119,7 +117,7 @@ camera_print_path = os.path.join(HOME, "Pictures", "PEAT Cam Captures")
 user_info_path = os.path.join(config_folder, "user_info.json")
 pbat_trust_folder = os.path.join(BASE_DIR, "PEAT_Batch/Trusted")
 system_folder = os.path.join(BASE_DIR, "system")
-sys_info_path = os.path.join(system_folder, "sys_info")
+sys_info_path = os.path.join(system_folder, "sys_info.json")
 peat_print_path = os.path.join(HOME, "Documents", "PEAT Prints")
 
 # == Files ==
@@ -291,9 +289,14 @@ def init_act_log():
         f.write("(log for peat's automated actions)")
         f.write("=============================\n\n")
 
+def shutdown(reason):
+    (f"PEAT encountered a critical error and is shutting down.")
+
+
+
 def quit(exit_code, who, reason):
     log(f"{who} flagged exit ({exit_code}) because: {reason}")
-    voice_print("Quitting PEAT...")
+    print("Quitting PEAT...")
     if exit_code != 0:
         print("Error(s) were encountered. Check the log for more details.")
         if debug_mode:
@@ -435,25 +438,26 @@ def make_dir(path, name, simple_path):
     log(f"Directory created at: {target_path}")
 
 def load_json_data():
+
+    log("Attempting to load JSON data...")
+
     try:
-        global debug_info, name, news_items_per_request, dev_mode, debug_mode, voice_mode, tts_toggle, user_info_path
+        global debug_info, name, dev_mode, debug_mode, tts_toggle, user_info_path
         global PEAT_VERSION
 
         # Load config data
         debug_info = load_json_value(config_path, "bool", "debugInfo", False)
         name = load_json_value(config_path, "str", "name", default_name)
-        news_items_per_request = load_json_value(config_path, "int", "newsItemsPerRequest", news_items_per_request)
         dev_mode = load_json_value(config_path, "bool", "dev", False)
         debug_mode = load_json_value(config_path, "bool", "debug", False)
-        voice_mode = load_json_value(config_path, "bool", "voiceMode", True)
-        tts_toggle = (True if voice_mode else load_json_value(config_path, "bool", "tts", False))
+        tts_toggle = load_json_value(config_path, "bool", "tts", False)
 
         # Load system data
         PEAT_VERSION = load_json_value(sys_info_path, "str", "sysVersion", "Error!!")
 
         
-    except (OSError, json.JSONDecodeError) as e:
-        quit(1, "system", f"Error while loading JSON data: {e}")
+    except (Exception) as e:
+        shutdown(f"Error while loading JSON data: {e}")
 
 def register_command(extension, command_name, handler):
     global router
@@ -468,34 +472,40 @@ def register_command(extension, command_name, handler):
 # == Extension Functions ==
 def ext_load(self, name):
     name = name.replace(".py", "").strip()
-    file = f"{name}.py"
 
-    src = os.path.join(self.unactive, file)
-    dst = os.path.join(self.active, file)
+    src_dir = os.path.join(self.unactive, name)
+    dst_dir = os.path.join(self.active, name)
 
-    if not os.path.exists(src):
+    if not os.path.isdir(src_dir):
         voice_print(f"Extension '{name}' not found in Unactive.")
         return
 
-    shutil.move(src, dst)
+    if os.path.isdir(dst_dir):
+        voice_print(f"Extension '{name}' is already active.")
+        return
 
-    voice_print(f"Extension '{name}' loaded.")
+    shutil.move(src_dir, dst_dir)
+
+    print(f"Extension '{name}' loaded.")
     log(f"[EXT] Loaded {name}")
 
     reload_extensions()
 
 def ext_unload(self, name):
     name = name.replace(".py", "").strip()
-    file = f"{name}.py"
 
-    src = os.path.join(self.active, file)
-    dst = os.path.join(self.unactive, file)
+    src_dir = os.path.join(self.active, name)
+    dst_dir = os.path.join(self.unactive, name)
 
-    if not os.path.exists(src):
+    if not os.path.isdir(src_dir):
         voice_print(f"Extension '{name}' is not active.")
         return
 
-    shutil.move(src, dst)
+    if os.path.isdir(dst_dir):
+        voice_print(f"Extension '{name}' is already unloaded.")
+        return
+
+    shutil.move(src_dir, dst_dir)
 
     voice_print(f"Extension '{name}' unloaded.")
     log(f"[EXT] Unloaded {name}")
@@ -505,10 +515,12 @@ def ext_unload(self, name):
 def reload_extensions():
     global extensions
 
+    log("Reloading extensions!")
+
     ext_folder = EXT_ACTIVE
 
     if not os.path.exists(ext_folder):
-        os.makedirs(ext_folder)
+        os.makedirs(ext_folder, exist_ok=True)
         return
 
     # =========================
@@ -522,14 +534,34 @@ def reload_extensions():
     # =========================
     # LOAD EXTENSIONS
     # =========================
-    for file in os.listdir(ext_folder):
-        if not file.endswith(".py"):
+    for entry in os.listdir(ext_folder):
+        ext_dir = os.path.join(ext_folder, entry)
+        if not os.path.isdir(ext_dir):
             continue
 
-        path = os.path.join(ext_folder, file)
-        name = file[:-3]
+        manifest_path = os.path.join(ext_dir, "manifest.json")
+        module_name = entry
+        module_file = f"{entry}.py"
 
-        spec = importlib.util.spec_from_file_location(name, path)
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as handle:
+                    manifest = json.load(handle)
+                module_file = manifest.get("module", module_file)
+                module_name = manifest.get("name", entry)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        module_path = os.path.join(ext_dir, module_file)
+        if not os.path.exists(module_path):
+            log(f"[EXT] Skipping {entry}: module not found at {module_path}")
+            continue
+
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        if spec is None or spec.loader is None:
+            log(f"[EXT ERROR] {entry}: could not create import spec")
+            continue
+
         module = importlib.util.module_from_spec(spec)
 
         # inject API
@@ -541,12 +573,12 @@ def reload_extensions():
             if hasattr(module, "load_extension"):
                 module.load_extension()
 
-            extensions[name] = module
+            extensions[module_name] = module
 
-            log(f"[EXT] Loaded extension: {name}")
+            log(f"[EXT] Loaded extension: {module_name}")
 
         except Exception as e:
-            log(f"[EXT ERROR] {name}: {e}")
+            log(f"[EXT ERROR] {entry}: {e}")
 
 def register_help(extension_name, help_dict):
     global extension_help
@@ -566,84 +598,6 @@ def callback(indata, frames, time, status):
     if status:
         print(status)
     q.put(bytes(indata))
-
-# == Voice Recognition Functions ==
-def clear_audio_queue():
-    with q.mutex:
-        q.queue.clear()
-
-def get_voice_model():
-    global voice_model, voice_ready
-
-    if voice_model is None:
-        try:
-            voice_model = Model("vosk-model-en-us-0.42-gigaspeech")
-            log("[INIT] Voice model loaded.")
-
-        except FileNotFoundError:
-            log(f"[INIT] [V] Voice model was not found. Make sure it's installed in the root and unzipped!")
-
-        except Exception as e:
-            log(f"[INIT] [V] Voice model load failed: {e}")
-            voice_ready = False
-            voice_model = None
-
-    return voice_model
-
-def is_silent(audio, threshold=0.01):
-    return np.abs(audio).mean() < threshold
-
-def record_audio(max_seconds=10):
-    print("Listening...")
-
-    audio = sd.rec(
-        int(max_seconds * SAMPLE_RATE),
-        samplerate=SAMPLE_RATE,
-        channels=1,
-        dtype="float32"
-    )
-
-    sd.wait()
-    return np.squeeze(audio)
-
-def transcribe(audio):
-    rec = KaldiRecognizer(voice_model, SAMPLE_RATE)
-    rec.AcceptWaveform(audio.tobytes())
-    result = json.loads(rec.FinalResult())
-    return result.get("text", "")
-
-def listen():
-
-    if not voice_ready or voice_model is None:
-        return input("$ (voice disabled) ")
-    
-    rec = KaldiRecognizer(voice_model, samplerate)
-
-    with sd.RawInputStream(
-        samplerate=samplerate,
-        blocksize=8000,
-        dtype="int16",
-        channels=1,
-        callback=callback
-    ):
-        if debug_mode:
-            print("Listening:")
-
-        while True:
-            try:
-                data = q.get(timeout=1)
-            except queue.Empty:
-                continue
-
-            if rec.AcceptWaveform(data):
-                result = json.loads(rec.Result())
-                text = result.get("text", "")
-                if text.strip():
-                    return text
-
-            # optional partials (debug)
-            if debug_mode:
-                print(rec.PartialResult())
 
 # == While True loop Functions ==
 def camera_loop():
@@ -821,8 +775,8 @@ def parse_input(user_input):
     return cmd_act, cmd_args1, cmd_args2
 
 def resolve_voice_alias(command_text):
-    if not voice_mode:
-        return command_text
+
+    return command_text
 
     normalized = command_text.strip().lower()
     if not normalized:
@@ -856,7 +810,6 @@ def speak(text):
         speaker.Speak(text)
 
     except Exception as e:
-        print(f"[TTS ERROR] Failed to speak: {e}")
         log(f"[TTS ERROR] Failed to speak: {e}")
 
 def voice_print(text):
@@ -1467,7 +1420,7 @@ def do(cmd, who):
 
     cmd_act, cmd_args1, cmd_args2 = parse_input(cmd)
 
-    if voice_mode:
+    if False:
         original_cmd = cmd
         cmd = resolve_voice_alias(cmd)
         if debug_mode and original_cmd != cmd:
@@ -1522,13 +1475,6 @@ def do(cmd, who):
 load_json_data()
 load_user_info()
 
-if voice_mode:
-    log("[INIT] [I] voice_mode is True. Loading voice model...")
-    get_voice_model()
-    if voice_model is None:
-        print("Voice model failed to load. Disabling voice mode.")
-        voice_mode = False
-
 if debug_mode:
     log("[INIT] [I] Developer mode enabled via config.")
     print("Developer mode is enabled.\n")
@@ -1560,7 +1506,7 @@ while True:
             speak(query_placeholder)
 
         # 2. INPUT SOURCE SWITCH
-        if voice_mode:
+        if False:
             query = listen()
             if query and query.strip():
                 if voice_mode:
