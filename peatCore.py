@@ -1446,6 +1446,7 @@ def devcmd_self_check(a1, a2, who):
 def devcmd_get_calue(a1, a2, who):
     pass
 
+
 # == Populate Dictionaries == 
 def populate_router():
     global router
