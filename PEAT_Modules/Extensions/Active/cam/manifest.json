@@ -1,5 +1,13 @@
 ﻿{
+    "name": "PEAT Camera Access",
+    "author": "Beffy",
+    "description": "Allows PEAT to access the camera for capturing images.",
     "module":  "cam.py",
-    "name":  "cam",
-    "version":  "1.0"
+    "ext_id":  "cam",
+    "namespace": "cam",
+    "version":  "1.0",
+
+    "requirements": [
+        "ext_keyboard_lib"
+    ]
 }

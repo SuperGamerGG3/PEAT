@@ -1,0 +1,8 @@
+====== PEAT LOG ======
+Start time: 2026-07-02 16:53:16
+======================
+
+[2026-07-02 16:53:16] PEAT encountered a critical error and is shutting down.
+[2026-07-02 16:53:16] Forced shutdown by user: dev. Good job!
+[2026-07-02 16:53:16] Crash dump!!
+[2026-07-02 16:53:16] Log dumped

@@ -1,18 +1,11 @@
-"""
-PEAT EXTENSION
-author = Beffy
-name = Internet Info Fetch
-filename = info_fetch
-version = 1.0
-
-requirements:
-- None
-"""
+# PEAT Extension
 
 import urllib
 import xml.etree.ElementTree as ET
 
 EXT_NAMESPACE = "inf"
+EXT_ID = "info_fetch"
+
 
 help_dict = {
     "weather": "Fetches weather",
@@ -20,10 +13,10 @@ help_dict = {
 }
 
 def load_extension():
-    peat.register_command(EXT_NAMESPACE, "weather", cmd_weather) # type: ignore
-    peat.register_command(EXT_NAMESPACE, "news", cmd_news) # type: ignore
+    peat.register_command("weather", cmd_weather) # type: ignore
+    peat.register_command("news", cmd_news) # type: ignore
     
-    peat.register_help(EXT_NAMESPACE, help_dict) # type: ignore
+    peat.register_help(help_dict) # type: ignore
 
 def fetch_weather(place):
     safe_place = urllib.parse.quote(place)
@@ -44,13 +37,13 @@ def cmd_weather(a1, a2, title):
         data = fetch_weather(a1)
 
         print("\n--- Weather Report ---")
-        peat.voice_print(f"{data}") # type: ignore
+        peat.print(f"{data}") # type: ignore
         print("----------------------")
 
         peat.log(f"Weather fetched: {location_raw}") # type: ignore
 
     except Exception as e:
-        peat.voice_print(f"Failed to fetch weather: {e}") # type: ignore
+        peat.print(f"Failed to fetch weather: {e}") # type: ignore
         peat.log(f"Weather error: {e}") # type: ignore
 
 def cmd_news(a1, a2, title):
@@ -88,7 +81,7 @@ def cmd_news(a1, a2, title):
         print("Expected quoted string for news source, but got nothing.")
         return
     else:
-        peat.voice_print("Unknown news source.") # type: ignore
+        peat.print("Unknown news source.") # type: ignore
         return
 
     if items != "":
@@ -121,8 +114,8 @@ def cmd_news(a1, a2, title):
 
         print("-------------------")
         peat.log("Fetched news successfully") # type: ignore
-        peat.voice_print("News fetched successfully.") # type: ignore
+        peat.print("News fetched successfully.") # type: ignore
 
     except Exception as e:
-        peat.voice_print(f"Failed to fetch news: {e}") # type: ignore
+        peat.print(f"Failed to fetch news: {e}") # type: ignore
         peat.log(f"News fetch error: {e}") # type: ignore

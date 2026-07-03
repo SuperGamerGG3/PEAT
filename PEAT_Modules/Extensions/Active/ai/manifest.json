@@ -1,0 +1,13 @@
+﻿{
+    "name": "PEAT Ollama Integration",
+    "author": "Beffy",
+    "description": "Integration for Ollama AI capabilities",
+    "module":  "ai.py",
+    "ext_id":  "ai",    
+    "namespace": "ai",    
+    "version":  "1.0",
+
+    "requirements": [
+        "ext_keyboard_lib"
+    ]
+}

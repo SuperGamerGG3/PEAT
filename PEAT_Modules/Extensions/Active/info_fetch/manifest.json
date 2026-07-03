@@ -1,5 +1,10 @@
 ﻿{
+    "name": "Internet Info Fetch",
+    "author": "Beffy",
+    "description": "Fetches information from the internet.",
     "module":  "info_fetch.py",
-    "name":  "info_fetch",
-    "version":  "1.0"
+    "ext_id":  "info_fetch",
+    "namespace": "inf",
+    "version":  "1.0",
+    "requirements": {}
 }

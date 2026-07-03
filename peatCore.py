@@ -147,7 +147,7 @@ extensions = {}
 cam_controls = {}
 user_info = {}
 extension_help = {}
-extensions = {}
+loaded_extensions = []
 
 help_pages = {
     "help": "Displays this help message or details for a specific command.",
@@ -200,24 +200,25 @@ os.makedirs(EXT_UNACTIVE, exist_ok=True)
 os.makedirs(EXT_ACTIVE, exist_ok=True)
 
 class PEATAPI:
-    def __init__(self):
+    def __init__(self, extension_id):
         self.router = router
+        self.extension_id = extension_id
         self.ext = ExtMan()
 
-    def register_command(self, extension, name, handler):
-        register_command(extension, name, handler)
+    def register_command(self, name, handler):
+        register_command(self.extension_id, name, handler)
 
-    def register_help(self, extension_name, help_dict):
-        register_help(extension_name, help_dict)
+    def register_help(self, help_dict):
+        register_help(self.extension_id, help_dict)
 
     def get_commands(self):
         return list(router.keys())
 
-    def voice_print(self, text):
-        voice_print(text)
+    def print(self, text):
+        print(text)
 
-    def log(self, message):
-        log(f"[EXT] {message}")
+    def log(self, message, type="Info"):
+        log(f"[EXT] [{self.extension_id}] {message}", "type")
 
     def set_camera_mode(self, m):
         set_camera_mode(m)
@@ -252,9 +253,9 @@ def init_log():
 
 init_log()
 
-def log(message):
+def log(message, type="Info"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] {message}\n"
+    line = f"[{timestamp}] [{type}] {message}\n"
 
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(line)
@@ -271,7 +272,7 @@ def log_dump():
     timestamp = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
 
     # Log the log was dumped (on the log)
-    log(f"Log dumped")
+    log(f"Log dumped", "Info")
 
     # Build new filename
     new_name = f"peat_log_{timestamp}.txt"
@@ -280,7 +281,11 @@ def log_dump():
     new_path = os.path.join(log_dump_folder, new_name)
     shutil.copy2(source, new_path)
 
-    voice_print(f"Log dumped to: {new_path}")
+    print(f"Log dumped to: {new_path}")
+
+def crash_dump():
+    log("Crash dump!!", "Info")
+    log_dump()
 
 def init_act_log():
     with open(log_file, "w", encoding="utf-8") as f:
@@ -290,12 +295,14 @@ def init_act_log():
         f.write("=============================\n\n")
 
 def shutdown(reason):
-    (f"PEAT encountered a critical error and is shutting down.")
-
-
+    print(f"PEAT encountered a critical error and is shutting down.")
+    log(f"PEAT encountered a critical error and is shutting down.", "Warn")
+    log(reason, "Error")
+    crash_dump()
+    sys.exit(1)
 
 def quit(exit_code, who, reason):
-    log(f"{who} flagged exit ({exit_code}) because: {reason}")
+    log(f"{who} flagged exit ({exit_code}) because: {reason}", "Info")
     print("Quitting PEAT...")
     if exit_code != 0:
         print("Error(s) were encountered. Check the log for more details.")
@@ -309,7 +316,7 @@ def log_clear():
         f.write("")
 
 def flag_error(who, message):
-    log(f"[ERROR] Error flagged by {who} with message: '{message}'")
+    log(f"Error flagged by {who} with message: '{message}'", "Error")
 
 def validate_config_value(value_type, raw_value, default_value):
 
@@ -435,11 +442,11 @@ def make_dir(path, name, simple_path):
 
     os.makedirs(target_path, exist_ok=True)
     print(f"Directory created at: {target_path}")
-    log(f"Directory created at: {target_path}")
+    log(f"Directory created at: {target_path}", "Info")
 
 def load_json_data():
 
-    log("Attempting to load JSON data...")
+    log("Attempting to load JSON data...", "Info")
 
     try:
         global debug_info, name, dev_mode, debug_mode, tts_toggle, user_info_path
@@ -469,6 +476,52 @@ def register_command(extension, command_name, handler):
 
     router[full_name] = handler
 
+# == Extension Manifest System ==
+ext_manifest_cache = {}
+
+def get_ext_data(ext_id, item=None):
+    """
+    Get extension data from manifest.json.
+    
+    Args:
+        ext_id: Extension folder name (e.g., 'cam', 'ai', 'info_fetch')
+        item: Specific field to retrieve (e.g., 'namespace', 'name', 'version')
+              If None, returns the entire manifest dict
+    
+    Returns:
+        Requested item value, entire manifest dict, or None if not found
+    """
+    global ext_manifest_cache
+    
+    # Return from cache if available
+    if ext_id in ext_manifest_cache:
+        manifest = ext_manifest_cache[ext_id]
+    else:
+        # Load manifest from file
+        manifest_path = os.path.join(EXT_ACTIVE, ext_id, "manifest.json")
+        
+        if not os.path.exists(manifest_path):
+            return None
+        
+        try:
+            with open(manifest_path, "r", encoding="utf-8-sig") as f:
+                manifest = json.load(f)
+                ext_manifest_cache[ext_id] = manifest
+        except (json.JSONDecodeError, OSError) as e:
+            log(f"[EXT] Error loading manifest for {ext_id}: {e}", "Error")
+            return None
+    
+    # Return specific item or entire manifest
+    if item is None:
+        return manifest
+    else:
+        return manifest.get(item)
+
+def clear_ext_manifest_cache():
+    """Clear the extension manifest cache (call when reloading extensions)."""
+    global ext_manifest_cache
+    ext_manifest_cache.clear()
+
 # == Extension Functions ==
 def ext_load(self, name):
     name = name.replace(".py", "").strip()
@@ -477,17 +530,17 @@ def ext_load(self, name):
     dst_dir = os.path.join(self.active, name)
 
     if not os.path.isdir(src_dir):
-        voice_print(f"Extension '{name}' not found in Unactive.")
+        print(f"Extension '{name}' not found in Unactive.")
         return
 
     if os.path.isdir(dst_dir):
-        voice_print(f"Extension '{name}' is already active.")
+        print(f"Extension '{name}' is already active.")
         return
 
     shutil.move(src_dir, dst_dir)
 
     print(f"Extension '{name}' loaded.")
-    log(f"[EXT] Loaded {name}")
+    log(f"[EXT] Loaded {name}", "Info")
 
     reload_extensions()
 
@@ -498,24 +551,26 @@ def ext_unload(self, name):
     dst_dir = os.path.join(self.unactive, name)
 
     if not os.path.isdir(src_dir):
-        voice_print(f"Extension '{name}' is not active.")
+        print(f"Extension '{name}' is not active.")
         return
 
     if os.path.isdir(dst_dir):
-        voice_print(f"Extension '{name}' is already unloaded.")
+        print(f"Extension '{name}' is already unloaded.")
         return
 
     shutil.move(src_dir, dst_dir)
 
-    voice_print(f"Extension '{name}' unloaded.")
-    log(f"[EXT] Unloaded {name}")
+    print(f"Extension '{name}' unloaded.")
+    log(f"[EXT] Unloaded {name}", "Info")
 
     reload_extensions()
 
 def reload_extensions():
-    global extensions
+    global extensions, loaded_extensions
 
-    log("Reloading extensions!")
+    log("Reloading extensions!", "Info")
+    clear_ext_manifest_cache()
+    loaded_extensions.clear()
 
     ext_folder = EXT_ACTIVE
 
@@ -539,33 +594,40 @@ def reload_extensions():
         if not os.path.isdir(ext_dir):
             continue
 
+        # Load manifest data
         manifest_path = os.path.join(ext_dir, "manifest.json")
-        module_name = entry
-        module_file = f"{entry}.py"
+        if not os.path.exists(manifest_path):
+            log(f"[EXT] Skipping {entry}: manifest.json not found", "Warn")
+            continue
 
-        if os.path.exists(manifest_path):
-            try:
-                with open(manifest_path, "r", encoding="utf-8") as handle:
-                    manifest = json.load(handle)
-                module_file = manifest.get("module", module_file)
-                module_name = manifest.get("name", entry)
-            except (json.JSONDecodeError, OSError):
-                pass
+        try:
+            with open(manifest_path, "r", encoding="utf-8-sig") as handle:
+                manifest = json.load(handle)
+                ext_manifest_cache[entry] = manifest
+        except (json.JSONDecodeError, OSError) as e:
+            log(f"[EXT] Skipping {entry}: invalid manifest.json - {e}", "Error")
+            continue
+
+        # Get values from manifest
+        module_file = manifest.get("module", f"{entry}.py")
+        module_name = manifest.get("name", entry)
+        extension_id = manifest.get("ext_id", entry)
+        namespace = manifest.get("namespace", extension_id)
 
         module_path = os.path.join(ext_dir, module_file)
         if not os.path.exists(module_path):
-            log(f"[EXT] Skipping {entry}: module not found at {module_path}")
+            log(f"[EXT] Skipping {entry}: module not found at {module_path}", "Warn")
             continue
 
         spec = importlib.util.spec_from_file_location(module_name, module_path)
         if spec is None or spec.loader is None:
-            log(f"[EXT ERROR] {entry}: could not create import spec")
+            log(f"[EXT] Could not create import spec for {entry}", "Error")
             continue
 
         module = importlib.util.module_from_spec(spec)
 
-        # inject API
-        module.peat = api
+        # Inject API with namespace from manifest
+        module.peat = PEATAPI(namespace)
 
         try:
             spec.loader.exec_module(module)
@@ -574,15 +636,33 @@ def reload_extensions():
                 module.load_extension()
 
             extensions[module_name] = module
+            loaded_extensions.append({
+                "name": module_name,
+                "namespace": namespace,
+                "ext_id": extension_id,
+                "version": manifest.get("version", "unknown")
+            })
 
-            log(f"[EXT] Loaded extension: {module_name}")
+            log(f"[EXT] Loaded extension: {module_name} (namespace: {namespace})", "OK")
 
         except Exception as e:
-            log(f"[EXT ERROR] {entry}: {e}")
+            log(f"[EXT] {entry}: {e}", "Error")
 
 def register_help(extension_name, help_dict):
     global extension_help
     extension_help[extension_name] = help_dict
+
+# Extension API Functions
+def test_extension_requirements(ext_id):
+    requirements = get_ext_data(ext_id, "requirements")
+    if requirements is None:
+        return []
+    
+    if requirements <= loaded_extensions:
+        return True
+    else:
+        pass
+
 
 # == Extension Globals == 
 def set_camera_mode(value):
@@ -606,7 +686,7 @@ def camera_loop():
     cap = cv2.VideoCapture(camera_index)
 
     if not cap.isOpened():
-        voice_print(f"Failed to open camera {camera_index}.")
+        print(f"Failed to open camera {camera_index}.")
         camera_mode = False
         return
 
@@ -620,7 +700,7 @@ def camera_loop():
         ret, frame = cap.read()
 
         if not ret:
-            voice_print("Camera read failed.")
+            print("Camera read failed.")
             break
 
         frame = cv2.resize(frame, (640, 360))
@@ -677,7 +757,7 @@ def camera_loop():
     cap.release()
     cv2.destroyAllWindows()
 
-# == Other Functions ==
+# Other Functions
 def get_time_period():
     # This was made by ai, but edited by me
     time_period = ""
@@ -698,7 +778,7 @@ def get_time_period():
 
     return time_period
 
-# == Mem Functions ==
+# Mem Functions
 def load_user_info():
     global user_info
 
@@ -716,7 +796,7 @@ def load_user_info():
                 user_info = {}
 
     except Exception as e:
-        log(f"Failed to load user info: {e}")
+        log(f"Failed to load user info: {e}", "Error")
         user_info = {}
 
 def save_user_info():
@@ -725,9 +805,9 @@ def save_user_info():
             json.dump(user_info, f, indent=2)
 
     except Exception as e:
-        log(f"Failed to save user info: {e}")
+        log(f"Failed to save user info: {e}", "Error")
 
-# == Do Functions ==
+# Do Functions
 def get_tts_voices():
     voices = speaker.GetVoices()
 
@@ -810,17 +890,15 @@ def speak(text):
         speaker.Speak(text)
 
     except Exception as e:
-        log(f"[TTS ERROR] Failed to speak: {e}")
+        log(f"[TTS ERROR] Failed to speak: {e}", "Warn")
 
-def voice_print(text):
-    global tts_toggle
 
     print(text)
 
     if tts_toggle:
         speak(text)
 
-# == Command Functions ==
+# Command Functions old
 def launch_app(app_name):
     try:
         if sys.platform.startswith('win'):
@@ -829,33 +907,18 @@ def launch_app(app_name):
             subprocess.Popen(['open', '-a', app_name])
         else:
             subprocess.Popen([app_name])
-        voice_print(f"Launching '{app_name}'...")
+        print(f"Launching '{app_name}'...")
     except Exception as e:
-        voice_print(f"Failed to launch '{app_name}': {e}")
-        log(f"Failed to launch '{app_name}': {e}")
+        print(f"Failed to launch '{app_name}': {e}")
+        log(f"Failed to launch '{app_name}': {e}", "Warn")
 
 def execute(exec_name):
     if exec_name in executables:
-        voice_print(f"Executing '{exec_name}'...")
+        print(f"Executing '{exec_name}'...")
     else:
-        voice_print(f"Attempted to execute '{exec_name}', but nothing was found with that name.")
+        print(f"Attempted to execute '{exec_name}', but nothing was found with that name.")
 
-def process_conversation(text):
-    normalized = text.lower().strip()
-    normalized = normalized.replace("?", "")
-
-    if "am i right" in normalized:
-        return "Yes, you are."
-
-    if "hello" in normalized:
-        return f"Hello, {name}."
-
-    if "how are you" in normalized:
-        return "I'm functioning normally."
-
-    return None
-
-# == Camera Controls ==
+# Camera Controls
 def cam_quit(ctx):
     global camera_mode
     camera_mode = False
@@ -872,18 +935,18 @@ def cam_capture(ctx):
     )
 
     cv2.imwrite(filename, frame)
-    log(f"[CAM C] Saved capture: {filename}")
+    log(f"[CAM C] Saved capture: {filename}", "Info")
     print(f"Saved capture: {filename}")
 
     return "capture"
 
-# == PBAT Functions ==
+# PBAT Functions
 def repeat_overflow(value):
-    voice_print(f"Overflow: loop repeats {value} times which exceeds max of {MAX_REPEAT} times")
-    flag_error("PBAT" "repeat overflow")
+    print(f"Overflow: loop repeats {value} times which exceeds max of {MAX_REPEAT} times")
+    flag_error("PBAT", "repeat overflow")
 
 def label_overflow(value):
-    voice_print(f"Overflow: label length {value} exceeds max of {MAX_LABEL_LENGTH} characters")
+    print(f"Overflow: label length {value} exceeds max of {MAX_LABEL_LENGTH} characters")
     flag_error("PBAT", "label overflow")
 
 def resolve_vars(text, vars):
@@ -976,8 +1039,8 @@ def run_pbat(script_name):
         print(f"PBAT script not found: {script_name}")
         return
 
-    voice_print(f"Running PBAT: {script_name}")
-    log(f"Running PBAT script: {script_name}")
+    print(f"Running PBAT: {script_name}")
+    log(f"Running PBAT script: {script_name}", "Info")
 
     with open(script_path, "r", encoding="utf-8") as f:
         lines = [l.strip() for l in f.readlines()]
@@ -1058,7 +1121,7 @@ def run_pbat(script_name):
         if cmd == "print":
             if args.startswith('"') and args.endswith('"'):
                 raw = args[1:-1]
-                voice_print(resolve(raw))
+                print(resolve(raw))
             else:
                 flag_error("PBAT", "Syntax error in print")
             i += 1
@@ -1115,7 +1178,7 @@ def run_pbat(script_name):
                         try:
                             raw = sub.split(" ", 1)[1]
                             if raw.startswith('"') and raw.endswith('"'):
-                                voice_print(resolve(raw[1:-1]))
+                                print(resolve(raw[1:-1]))
                         except:
                             pass
 
@@ -1178,10 +1241,10 @@ def run_pbat(script_name):
         do(line, "pbat")
         i += 1
 
-    log(f"Finished PBAT script: {script_name}")
-    voice_print(f"PBAT Script '{script_name}' finished.")
+    log(f"Finished PBAT script: {script_name}", "OK")
+    print(f"PBAT Script '{script_name}' finished.")
 
-# == CMD Functions ==
+# Core commands
 def cmd_help(a1, a2, who):
     if not a1:
         print("Commands:")
@@ -1199,11 +1262,11 @@ def cmd_help(a1, a2, who):
 
 def cmd_log(a1, a2, who):
     if who == "pbat":
-        log(f"[PBAT] {a1}")
+        log(f"[PBAT] {a1}", "Devlog")
         return
 
     if not debug_mode:
-        voice_print("This feature is for developers only. Enable debug mode to use it.")
+        print("This feature is for developers only. Enable debug mode to use it.")
         return
 
     # log dump
@@ -1214,21 +1277,21 @@ def cmd_log(a1, a2, who):
     # log clear
     if a1 == "clear":
         log_clear()
-        voice_print("Log cleared.")
+        print("Log cleared.")
         return
 
     # write custom log message
     if a1 and a1[0] in ('"', "'"):
         a1 = clean_args(a1, a1[0])
-        log(a1)
-        voice_print("Logged message.")
+        log(a1, "Devlog")
+        print("Logged message.")
         return
 
-    voice_print("Unknown log command.")
+    print("Unknown log command.")
 
 def cmd_launch(a1, a2, who):
     if not a1:
-        voice_print("Expected a string for the application name, but got nothing.")
+        print("Expected a string for the application name, but got nothing.")
         return
 
     if a1[0] in ('"', "'"):
@@ -1240,17 +1303,17 @@ def cmd_exec(a1, a2, who):
     if who != "pbat":
         execute(a1)
     else:
-        voice_print("Cannot execute from within a PBAT script!")
+        print("Cannot execute from within a PBAT script!")
         flag_error("EXEC", "Attempted to execute from within a PBAT script.")
 
 def cmd_pbat(a1, a2, who):
     if who == "pbat":
-        voice_print("Cannot run a PBAT script from within another PBAT script!")
+        print("Cannot run a PBAT script from within another PBAT script!")
         flag_error("PBAT", "Attempted nested PBAT.")
         return
 
     if not a1:
-        voice_print("Expected a string for the script name, but got nothing.")
+        print("Expected a string for the script name, but got nothing.")
         return
 
     if a1[0] in ('"', "'"):
@@ -1260,72 +1323,72 @@ def cmd_pbat(a1, a2, who):
 
 def cmd_print(a1, a2, who):
     if not a1:
-        voice_print("Expected a string to print, but got nothing.")
+        print("Expected a string to print, but got nothing.")
         return
 
     if a1[0] in ('"', "'"):
         a1 = clean_args(a1, a1[0])
 
-    voice_print(a1)
+    print(a1)
 
 def cmd_quote(a1, a2, who):
-    voice_print(quotes[total_commands_used % len(quotes)])
+    print(quotes[total_commands_used % len(quotes)])
 
 def cmd_link(a1, a2, who):
     if not a1:
-        voice_print("Expected a string for the URL, but got nothing.")
+        print("Expected a string for the URL, but got nothing.")
         return
 
     if a1[0] in ('"', "'"):
         a1 = clean_args(a1, a1[0])
 
-    voice_print(f"Opening link in browser: {a1}")
+    print(f"Opening link in browser: {a1}")
     webbrowser.open(a1)
 
 def cmd_delay(a1, a2, who):
     if not a1:
-        voice_print("Expected a number, but got nothing.")
+        print("Expected a number, but got nothing.")
         return
 
     try:
         delay_time = float(a1)
         time.sleep(delay_time)
-        voice_print(f"Delayed for {delay_time} seconds.")
+        print(f"Delayed for {delay_time} seconds.")
     except ValueError:
         flag_error("delay", f"Expected a number for delay time, got: {a1}")
 
 def cmd_time(a1, a2, who):
     now = datetime.now()
-    voice_print(f"Current time: {now.strftime('%H:%M:%S')}")
+    print(f"Current time: {now.strftime('%H:%M:%S')}")
 
 def cmd_date(a1, a2, who):
     now = datetime.now()
-    voice_print(f"Today is: {now.strftime('%Y-%m-%d')}")
+    print(f"Today is: {now.strftime('%Y-%m-%d')}")
 
 def cmd_now(a1, a2, who):
     now = datetime.now()
-    voice_print(f"Date: {now.strftime('%Y-%m-%d')}")
-    voice_print(f"Time: {now.strftime('%H:%M:%S')}")
+    print(f"Date: {now.strftime('%Y-%m-%d')}")
+    print(f"Time: {now.strftime('%H:%M:%S')}")
 
 def cmd_debug(a1, a2, who):
     global debug_mode
 
     debug_mode = not debug_mode
 
-    voice_print(f"Debug mode is {'enabled' if debug_mode else 'disabled'}.")
-    log(f"Debug mode {'enabled' if debug_mode else 'disabled'} by user.")
+    print(f"Debug mode is {'enabled' if debug_mode else 'disabled'}.")
+    log(f"Debug mode {'enabled' if debug_mode else 'disabled'} by user.", "Info")
 
 def cmd_config_get(a1, a2, who):
     if not a1:
-        voice_print("Expected config key.")
+        print("Expected config key.")
         return
 
     value = load_json_value(config_path, "str", a1, "undefined")
-    voice_print(f"{a1} = {value}")
+    print(f"{a1} = {value}")
 
 def cmd_config_set(a1, a2, who):
     if not a1 or not a2:
-        voice_print("Usage: config.set <key> <value>")
+        print("Usage: config.set <key> <value>")
         return
 
     # detect value type automatically
@@ -1346,11 +1409,12 @@ def cmd_config_set(a1, a2, who):
                 pass
 
     save_json_value(config_path, type(value).__name__, a1, value)
-    voice_print(f"Saved: {a1} = {value}")
+    print(f"Saved: {a1} = {value}")
 
 def cmd_version(a1, a2, who):
     print(f"You are using P.E.A.T. version {PEAT_VERSION}")
 
+# Extman commands
 def cmd_ext_load(a1, a2, who):
     api.ext.load(a1)
 
@@ -1359,6 +1423,28 @@ def cmd_ext_unload(a1, a2, who):
 
 def cmd_ext_reload(a1, a2, who):
     reload_extensions()
+
+def cmd_ext_list(a1, a2, who):
+    if not loaded_extensions:
+        print("No extensions are currently loaded.")
+        return
+    
+    print("Currently loaded extensions:")
+    for i, ext in enumerate(loaded_extensions, 1):
+        print(f"\n{i}. {ext['name']}")
+        print(f"   Namespace: {ext['namespace']}")
+        print(f"   ID: {ext['ext_id']}")
+        print(f"   Version: {ext['version']}")
+
+# Dev commands
+def devcmd_test_dev(a1, a2, who):
+    print("The dev test command works!")
+
+def devcmd_self_check(a1, a2, who):
+    pass
+
+def devcmd_get_calue(a1, a2, who):
+    pass
 
 # == Populate Dictionaries == 
 def populate_router():
@@ -1372,6 +1458,12 @@ def populate_router():
     register_command("core", "ext.load", cmd_ext_load)
     register_command("core", "ext.unload", cmd_ext_unload)
     register_command("core", "ext.reload", cmd_ext_reload)
+    register_command("core", "ext.list", cmd_ext_list)
+
+    # Dev commands + debug commands
+    register_command("core", "dev.test", devcmd_test_dev)
+    register_command("core", "dev.forceshut", lambda a1, a2, who: shutdown("Forced shutdown by user: dev. Good job!"))
+    register_command("core", "dev.check", devcmd_self_check)
 
     # Action commands
     register_command("act", "launch", cmd_launch)
@@ -1405,16 +1497,16 @@ def populate_cam_controls():
     cam_controls[ord("q")] = cam_quit
     cam_controls[ord("p")] = cam_capture
 
-api = PEATAPI()
+api = PEATAPI("core")
 populate_router()
 reload_extensions()
 populate_cam_controls()
 
 # The main do function
 def do(cmd, who):
-    log(f"Attempting do: '{cmd}'")
+    log(f"Attempting do: '{cmd}'", "Info")
     if who != "user":
-        log(f"Command issued by: {who}, this will be logged in action log.")
+        log(f"Command issued by: {who}, this will be logged in action log.", "Info")
     global total_commands_used
     total_commands_used += 1
 
@@ -1443,8 +1535,8 @@ def do(cmd, who):
             quit(0, "User", "User requested exit.")
 
         elif who == "pbat":
-            voice_print("Cannot quit PEAT from within a PBAT script!")
-            flag_error("PBAT" "Attempted quit inside PBAT.")
+            print("Cannot quit PEAT from within a PBAT script!")
+            flag_error("PBAT", "Attempted quit inside PBAT.")
 
         elif who == "sys":
             quit(0, "System", "System requested exit.")
@@ -1458,16 +1550,16 @@ def do(cmd, who):
         try:
             handler(cmd_args1, cmd_args2, who)
         except Exception as e:
-            voice_print(f"Command error: {e}")
-            log(f"Command error in '{cmd_act}': {e}")
+            print(f"Command error: {e}")
+            log(f"Command error in '{cmd_act}': {e}", "Error")
     else:
         suggestion = suggest_command(cmd_act)
 
-        voice_print(f"Unknown command: '{cmd_act}'")
-        log(f"Unknown command: '{cmd_act}'")
+        print(f"Unknown command: '{cmd_act}'")
+        log(f"Unknown command: '{cmd_act}'", "Warn")
 
         if suggestion:
-            voice_print(f"Did you mean: '{suggestion}'?")
+            print(f"Did you mean: '{suggestion}'?")
 
     print()
 
@@ -1476,19 +1568,21 @@ load_json_data()
 load_user_info()
 
 if debug_mode:
-    log("[INIT] [I] Developer mode enabled via config.")
-    print("Developer mode is enabled.\n")
+    log("[INIT] Developer mode enabled via config.", "Info")
+    print("Developer mode is enabled. Please actually do something!\n")
 
 
-log(f"[INIT] [OK] Dictionary 'router' populated with {len(router)} commands.")
-log(f"[INIT] [OK] Dictionary 'cam_controls' populated with {len(cam_controls)} commands.")
-log("[INIT] [OK] Config from JSON fully loaded.")
-log("[INIT] [FIN] PEAT initialization complete.")
+log(f"[INIT] Dictionary 'router' populated with {len(router)} commands.", "OK")
+log(f"[INIT] Dictionary 'cam_controls' populated with {len(cam_controls)} commands.", "OK")
+log("[INIT] Config from JSON fully loaded.", "OK")
+log("[INIT] PEAT initialization complete.", "DONE")
 
 if get_time_period() == "night":
     print(f"It's pretty late, {name}.")
 else:
     print(f"Good {get_time_period()}, {name}.")
+
+print(query_placeholder)
 
 log("====== ENTERING MAIN LOOP ======")
 
@@ -1497,13 +1591,6 @@ while True:
         if camera_mode:
             camera_loop()
             continue
-            
-            
-        # 1. Prompt (spoken or printed)
-        print(query_placeholder)
-
-        if tts_toggle:
-            speak(query_placeholder)
 
         # 2. INPUT SOURCE SWITCH
         if False:
@@ -1530,9 +1617,8 @@ while True:
 
     except KeyboardInterrupt:
             print("KeyboardInterrupt")
-            log("KeyboardInterrupt: Exiting main loop.")
+            log("KeyboardInterrupt: Exiting main loop.", "Info")
             quit(0, "User", "User KeyboardInterrupt.")
 
     except Exception as e:
-        print(f"Main loop exception: {e}")
-        log(f"Main loop exception: {e}")
+        shutdown(f"Main loop: {e}")
